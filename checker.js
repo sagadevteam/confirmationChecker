@@ -3,6 +3,8 @@ const mysql = require('mysql');
 
 const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 
+var blockHeightOnChain;
+
 var con = mysql.createConnection({
   host: "localhost",
   user: "root",
@@ -69,42 +71,29 @@ var getProcessedBlock = () => {
   });
 }
 
+function getBlockHeightOnChain() {
+  blockHeightOnChain = web3.eth.getBlock("latest");
+  console.log("Block Height: ", blockHeightOnChain.number);
+}
+
 var main = async () => {
+  setInterval(getBlockHeightOnChain, 15000)
   try {
     var processedBlock = await getProcessedBlock();
     if (processedBlock == 0) {
       let blk = web3.eth.getBlock("latest")
       var create = false;
       while (!create) {
-        create = createProcessedBlock(blk.number);
+        create = await createProcessedBlock(blk.number);
       }
     }
+
     console.log("ProcessedBlock: ", processedBlock);
+
   } catch (e) {
     console.log(e);
   }
 }
 
-//let blk = web3.eth.getBlock("latest")
-
-//console.log(blk.number)
-/*
-const filter = web3.eth.filter('latest');
-filter.watch((err, res) => {
-  if (err) {
-    console.log(`Watch error: ${err}`);
-  } else {
-    // Update balance
-    web3.eth.getBalance(address, (err, bal) => {
-      if (err) {
-        console.log(`getBalance error: ${err}`);
-      } else {
-        balance = bal;
-        console.log(`Balance [${address}]: ${web3.fromWei(balance, "ether")}`);
-      }
-    });
-  }
-});
-*/
 
 main()
