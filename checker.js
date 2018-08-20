@@ -3,7 +3,9 @@ const mysql = require('mysql');
 
 const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 
-var blockHeightOnChain;
+var blockHeightOnChain = 0;
+var processedBlock = 0;
+var checkProcessedBlocklock = true;
 
 var con = mysql.createConnection({
   host: "localhost",
@@ -12,39 +14,27 @@ var con = mysql.createConnection({
   database: "saga"
 });
 
-var createProcessedBlock = (blk) => {
+var createProcessedBlock = (blkNum) => {
   return new Promise((resolve, reject) => {
-    con.connect((err) => {
+    var sql = `INSERT INTO processed_block (block_height) VALUES (${blkNum})`;
+    con.query(sql, (err, result) => {
       if (err) {
         reject(err);
       } else {
-        var sql = `INSERT INTO processed_block (block_height) VALUES (${blk})`;
-        con.query(sql, (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(true);
-          }
-        });
+        resolve(true);
       }
     });
   });
 }
 
-var updateProcessedBlock = (blk) => {
+var updateProcessedBlock = (blkNum) => {
   return new Promise((resolve, reject) => {
-    con.connect((err) => {
+    var sql = `UPDATE processed_block SET block_height = ${blkNum} WHERE id = 1`;
+    con.query(sql, (err, result) => {
       if (err) {
         reject(err);
       } else {
-        var sql = `UPDATE processed_block SET block_height = ${blk} WHERE id = 1`;
-        con.query(sql, (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(true);
-          }
-        });
+        resolve(true);
       }
     });
   });
@@ -52,34 +42,48 @@ var updateProcessedBlock = (blk) => {
 
 var getProcessedBlock = () => {
   return new Promise((resolve, reject) => {
-    con.connect((err) => {
+    con.query("SELECT * FROM processed_block WHERE id = 1", (err, result) => {
       if (err) {
         reject(err);
         // error handle
       } else {
-        con.query("SELECT * FROM processed_block WHERE id = 1", (err, result) => {
-          if (err) {
-            reject(err);
-            // error handle
-          } else {
-            var value = ((result.length == 0) ? 0 : result[0].block_height);
-            resolve(value);
-          }
-        });
+        var value = ((result.length == 0) ? 0 : result[0].block_height);
+        resolve(value);
       }
     });
   });
 }
 
 function getBlockHeightOnChain() {
-  blockHeightOnChain = web3.eth.getBlock("latest");
-  console.log("Block Height: ", blockHeightOnChain.number);
+  blk = web3.eth.getBlock("latest");
+  blockHeightOnChain = blk.number;
+  console.log("Block Height on Chain: ", blockHeightOnChain);
+}
+
+async function checkProcessedBlock() {
+  console.log("ProcessedBlock: ", processedBlock);
+  if (processedBlock < blockHeightOnChain && checkProcessedBlocklock) {
+    checkProcessedBlocklock = false;
+    for (let i = processedBlock + 1 ; i <= blockHeightOnChain ; i++) {
+      var update = false;
+      while (!update) {
+        try {
+          update = await updateProcessedBlock(i);
+          processedBlock = i;
+        } catch (e) {
+          console.log(e);
+        }
+      }
+    }
+  }
+  checkProcessedBlocklock = true;
 }
 
 var main = async () => {
+  await con.connect();
   setInterval(getBlockHeightOnChain, 15000)
   try {
-    var processedBlock = await getProcessedBlock();
+    processedBlock = await getProcessedBlock();
     if (processedBlock == 0) {
       let blk = web3.eth.getBlock("latest")
       var create = false;
@@ -87,8 +91,7 @@ var main = async () => {
         create = await createProcessedBlock(blk.number);
       }
     }
-
-    console.log("ProcessedBlock: ", processedBlock);
+    setInterval(checkProcessedBlock, 1000)
 
   } catch (e) {
     console.log(e);
