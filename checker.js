@@ -6,6 +6,7 @@ const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 var blockHeightOnChain = 0;
 var processedBlock = 0;
 var checkProcessedBlocklock = true;
+var userAddressList = [];
 
 var con = mysql.createConnection({
   host: "localhost",
@@ -47,8 +48,23 @@ var getProcessedBlock = () => {
         reject(err);
         // error handle
       } else {
-        var value = ((result.length == 0) ? 0 : result[0].block_height);
+        var value = ((result.length == 0) ? -1 : result[0].block_height);
         resolve(value);
+      }
+    });
+  });
+}
+
+var getUsersAddress = () => {
+  return new Promise((resolve, reject) => {
+    con.query("SELECT eth_addr FROM users", (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        result.forEach((element) => {
+          userAddressList.push(element.eth_addr);
+        });
+        resolve(true);
       }
     });
   });
@@ -68,6 +84,13 @@ async function checkProcessedBlock() {
       var update = false;
       while (!update) {
         try {
+          txhash = web3.eth.getBlock(i).transactions
+          txhash.forEach((element) => {
+            tx = web3.eth.getTransaction(element);
+            if (userAddressList.includes(tx.to)) {
+              console.log("blk", i, "to", tx.to, "value", tx.value);
+            }
+          })
           update = await updateProcessedBlock(i);
           processedBlock = i;
         } catch (e) {
@@ -80,19 +103,23 @@ async function checkProcessedBlock() {
 }
 
 var main = async () => {
-  await con.connect();
-  setInterval(getBlockHeightOnChain, 15000)
   try {
+    await con.connect();
+    getBlockHeightOnChain();
+    var done = false;
+    while(!done) {
+      done = await getUsersAddress();
+    }
+    setInterval(getBlockHeightOnChain, 15000);
     processedBlock = await getProcessedBlock();
-    if (processedBlock == 0) {
-      let blk = web3.eth.getBlock("latest")
+    if (processedBlock == -1) {
+      let blk = web3.eth.getBlock("latest");
       var create = false;
       while (!create) {
         create = await createProcessedBlock(blk.number);
       }
     }
-    setInterval(checkProcessedBlock, 1000)
-
+    setInterval(checkProcessedBlock, 1000);
   } catch (e) {
     console.log(e);
   }
