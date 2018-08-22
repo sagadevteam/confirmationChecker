@@ -28,6 +28,35 @@ var createProcessedBlock = (blkNum) => {
   });
 }
 
+var createDepositRecordFromBlock = (blk) => {
+  return new Promise((resolve, reject) => {
+    var txList = [];
+    var txhash = web3.eth.getBlock(blk).transactions;
+    txhash.forEach((element) => {
+      var tx = web3.eth.getTransaction(element);
+      if (userAddressList.includes(tx.to)) {
+        txList.push({"txhash": element, "address": tx.to});
+        console.log("blk", blk, "txhash", element);
+      }
+    });
+    if (txList.length == 0) {
+      resolve(true);
+    } else {
+      var sql = `INSERT INTO deposits (txhash, address) VALUES ('${txList[0].txhash}', '${txList[0].address}')`;
+      for (let i = 1; i < txList.length; i++) {
+        sql = sql + `, ('${txList[i].txhash}', '${txList[i].address}')`;
+      }
+    }
+    con.query(sql, (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(true);
+      }
+    });
+  });
+}
+
 var updateProcessedBlock = (blkNum) => {
   return new Promise((resolve, reject) => {
     var sql = `UPDATE processed_block SET block_height = ${blkNum} WHERE id = 1`;
@@ -81,17 +110,18 @@ async function checkProcessedBlock() {
   if (processedBlock < blockHeightOnChain && checkProcessedBlocklock) {
     checkProcessedBlocklock = false;
     for (let i = processedBlock + 1 ; i <= blockHeightOnChain ; i++) {
-      var update = false;
-      while (!update) {
+      var done = false;
+      while (!done) {
         try {
-          txhash = web3.eth.getBlock(i).transactions
-          txhash.forEach((element) => {
-            tx = web3.eth.getTransaction(element);
-            if (userAddressList.includes(tx.to)) {
-              console.log("blk", i, "to", tx.to, "value", tx.value);
-            }
-          })
-          update = await updateProcessedBlock(i);
+          done = createDepositRecordFromBlock(i);
+        } catch (e) {
+          console.log(e);
+        }
+      }
+      done = false;
+      while (!done) {
+        try {
+          done = await updateProcessedBlock(i);
           processedBlock = i;
         } catch (e) {
           console.log(e);
