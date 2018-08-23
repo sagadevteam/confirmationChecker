@@ -28,7 +28,7 @@ var addrExistInDb = (addr) => {
 
 var createUserInDb = (addr) => {
 	return new Promise ((resolve, reject) => {
-		var sql = `INSERT INTO users (email, password, eth_addr, eth_value, saga_point) VALUES ('${addr}@saga.com', '', '${addr}', 0, 0)`;
+		var sql = `INSERT INTO users (email, password, eth_addr, eth_priv, eth_value, saga_point) VALUES ('${addr}@saga.com', '', '${addr}', '', 0, 0)`;
 		con.query(sql, (err, result) => {
 			if (err) {
 				reject(err);
