@@ -7,11 +7,21 @@ function getRandomInt(max) {
   return Math.floor(Math.random() * Math.floor(max));
 } 
 
-for (let i = 0; i < 50; i++) {
-	var _from = users[0];
-	var _to = users[getRandomInt(users.length)];
-	var _value = getRandomInt(100);
-	web3.personal.unlockAccount(_from, "");
-	console.log("address: ", _to,", value:", _value);
-	web3.eth.sendTransaction({"from": _from, "to": _to, "value": _value, "gasPrice": 0});
+var genTxNum = [];
+
+for (let i = 0; i < users.length-1; i++) {
+	genTxNum.push(getRandomInt(50));
+}
+
+var blk = web3.eth.getBlock('latest');
+
+console.log("From Block: ", blk.number);
+for (let i = 1; i < users.length; i++) {
+	console.log(users[i], ":", genTxNum[i-1], "tx gen");
+	for (let j = 0; j < genTxNum[i-1]; j++) {
+		var _from = users[0];
+		var _to = users[i];
+		var _value = getRandomInt(100);
+		web3.eth.sendTransaction({"from": _from, "to": _to, "value": _value, "gasPrice": 0});
+	}
 }
