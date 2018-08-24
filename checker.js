@@ -3,6 +3,8 @@ const mysql = require('mysql');
 
 const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'));
 
+const confirmation = 12;
+
 var blockHeightOnChain = 0;
 var processedBlock = 0;
 var checkProcessedBlocklock = true;
@@ -42,9 +44,9 @@ var createDepositRecordFromBlock = (blk) => {
     if (txList.length == 0) {
       resolve(true);
     } else {
-      var sql = `INSERT INTO deposits (txhash, address) VALUES ('${txList[0].txhash}', '${txList[0].address}')`;
+      var sql = `INSERT INTO deposits (txhash, address, approved) VALUES ('${txList[0].txhash}', '${txList[0].address}', 1)`;
       for (let i = 1; i < txList.length; i++) {
-        sql = sql + `, ('${txList[i].txhash}', '${txList[i].address}')`;
+        sql = sql + `, ('${txList[i].txhash}', '${txList[i].address}', 1)`;
       }
     }
     con.query(sql, (err, result) => {
@@ -110,10 +112,11 @@ async function checkProcessedBlock() {
   if (processedBlock < blockHeightOnChain && checkProcessedBlocklock) {
     checkProcessedBlocklock = false;
     for (let i = processedBlock + 1 ; i <= blockHeightOnChain ; i++) {
+      if (i < confirmation) { continue; }
       var done = false;
       while (!done) {
         try {
-          done = createDepositRecordFromBlock(i);
+          done = createDepositRecordFromBlock(i - confirmation);
         } catch (e) {
           console.log(e);
         }
